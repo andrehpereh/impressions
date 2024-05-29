@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../gpt"
+		},
+		{
+			"path": "../nanoGPT"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {}
+}
