@@ -36,11 +36,11 @@ class ConfigGPT:
         self.project_id = 'metal-sky-419309'
         self.bucket_name = 'metal-sky-419309-videos-v1'
         self.development_percentage = 1
-        self.train_percentage = 1
+        self.train_percentage = .9
         self.tokenizer_type = 'gpt-4'
         self.max_number_videos = 20
-        self.sample_input_text = ' welcome to the world of AI'
-        self.overwrite_video_captions = False,
+        self.sample_input_text = ' '
+        self.overwrite_video_captions = False
         self.checkpoint_dir = 'checkpoints'
 
     def __str__(self):

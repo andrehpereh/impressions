@@ -35,6 +35,7 @@ def download_from_gcs(bucket_name, source_blob_name, destination_file_name=None,
         read_only (bool): If True, reads and returns the content of the blob without saving to a file.
                           If False, saves the blob to the specified destination_file_name.
     """
+
     try:
         client = storage.Client()
         bucket = client.bucket(bucket_name)
@@ -50,7 +51,7 @@ def download_from_gcs(bucket_name, source_blob_name, destination_file_name=None,
                 raise ValueError("Downloaded content is empty.")
         else:
             if destination_file_name is None:
-                raise ValueError("destination_file_name must be provided when read_only is False.")
+                destination_file_name = source_blob_name
             blob.download_to_filename(destination_file_name)
             print(f"Blob {source_blob_name} downloaded to {destination_file_name}.")
     except Exception as e:
