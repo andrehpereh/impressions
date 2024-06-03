@@ -74,7 +74,10 @@ def main():
     print("Checking if video data exists in bucket...")
     if not gcs_utils.blob_exists(config.bucket_name, config.blob_name) or config.overwrite_video_captions:
         logger.info("Video data not found in bucket. Downloading...")
-        videos = youtube_captions.get_videos_and_captions(config.url, config.id_type, config.language)
+        videos = {}
+        for videourl in config.url:
+            video_data = youtube_captions.get_videos_and_captions(videourl, config.id_type, config.language)
+            videos.update(video_data)
         if videos:
             gcs_utils.save_dict_to_gcs(videos, bucket_name=config.bucket_name, blob_name = config.blob_name)
         else:

@@ -1,0 +1,2 @@
+tiktoken
+youtube-transcript-api

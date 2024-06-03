@@ -170,13 +170,14 @@ class Trainer:
                 self.model = GPT(gptconf)
             else:
                 self.model.load_state_dict(state_dict)
-                logger.info("Model resumed from checkpoint. Iteration: %d, Best Validation Loss: %f",
-                            self.iter_num, self.best_val_loss)
+
         else:
             raise ValueError(f"unknown init_from {self.init_from}")
 
         self.iter_num = 0 if self.iter_num is None else self.iter_num
         self.best_val_loss = 1e9 if self.best_val_loss is None else self.best_val_loss
+        logger.info("Model resumed from checkpoint. Iteration: %d, Best Validation Loss: %f",
+                    self.iter_num, self.best_val_loss)
         self.config.max_iters = self.config.max_iters + self.iter_num if self.iter_num > 0 else self.config.max_iters
         logger.info(f"max_iters: {self.config.max_iters} iter_num: {self.iter_num}, best_val_loss: {self.best_val_loss}")
 
@@ -200,6 +201,7 @@ class Trainer:
                 losses = estimate_loss(self.model, self.config.eval_iters, self.get_batch, self.ctx)
                 print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
                 if losses['val'] < self.best_val_loss or self.config.always_save_checkpoint and iter_num > 0:
+                    self.best_val_loss = losses['val']
                     save_checkpoint(
                         self.model, self.optimizer, iter_num, self.model_args, self.best_val_loss
                     )
