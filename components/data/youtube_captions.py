@@ -1,6 +1,6 @@
+import os
 import logging
 import argparse
-from google.cloud import storage
 from googleapiclient.discovery import build
 from youtube_transcript_api import YouTubeTranscriptApi
 from tqdm import tqdm
@@ -15,7 +15,10 @@ import re
 from components.utils import gcs_utils  # Naming it GCS causes some issues with the imports
 
 # Configuration
-DEVELOPER_KEY = "AIzaSyD1sC-t8Z8F1FNHyp0FlhLnbilEudYrG-I"
+DEVELOPER_KEY = os.getenv("DEVELOPER_KEY")
+if not DEVELOPER_KEY:
+    raise ValueError("DEVELOPER_KEY environment variable not set.")
+print("DEVELOPER_KEY: ", DEVELOPER_KEY)
 YOUTUBE_API_SERVICE_NAME = "youtube"
 YOUTUBE_API_VERSION = "v3"
 

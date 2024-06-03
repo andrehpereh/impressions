@@ -3,6 +3,7 @@ import pickle
 from contextlib import nullcontext
 import numpy as np
 import torch
+from components.utils.gcs_utils import upload_to_gcs
 from components.data import tokenizer
 from torch.optim.lr_scheduler import _LRScheduler
 from components.training.model import GPTConfig, GPT
@@ -42,25 +43,65 @@ def estimate_loss(model, eval_iters, get_batch, ctx):
     model.train()
     return out
 
-def save_checkpoint(model, optimizer, iteration, model_args, best_val_loss, checkpoint_dir="checkpoints"):
+def save_checkpoint(model, optimizer, iter_num, model_args, best_val_loss, bucket_name, destination_blob_name, checkpoint_dir="checkpoints"):
     os.makedirs(checkpoint_dir, exist_ok=True)
-    checkpoint_path = os.path.join(checkpoint_dir, f"Iter_{iteration}.pth")
+    checkpoint_path = os.path.join(checkpoint_dir, 'ckpt.pt')
     torch.save({
-        'iteration': iteration,
+        'iter_num': iter_num,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'model_args': model_args,
         'best_val_loss': best_val_loss,
     }, checkpoint_path)
-    print(f"Checkpoint saved at {checkpoint_path}")
+    upload_to_gcs(bucket_name=bucket_name, source_file_name=checkpoint_path, destination_blob_name=os.path.join(checkpoint_dir, destination_blob_name))
+    print(f"Checkpoint saved locally at {checkpoint_path}")
+    print(f"Checkpoint uploaded to GCS at {os.path.join(bucket_name, destination_blob_name)}")
+
+
+
+def resume_training(config, device):
+    print(f"Resuming training from {config.checkpoint_dir}")
+    # resume training from a checkpoint.
+    ckpt_path = os.path.join(config.checkpoint_dir, 'ckpt.pt')
+    checkpoint = torch.load(ckpt_path, map_location=device)
+    checkpoint_model_args = checkpoint['model_args']
+    # force these config attributes to be equal otherwise we can't even resume training
+    # the rest of the attributes (e.g. dropout) can stay as desired from command line
+    model_args = config_to_model_args(checkpoint_model_args)
+    # create the model
+    gptconf = GPTConfig(**model_args)
+    model = GPT(gptconf)
+    state_dict = checkpoint['model_state_dict']
+    # fix the keys of the state dictionary :(
+    # honestly no idea how checkpoints sometimes get this prefix, have to debug more
+    state_dict = fix_state_dict_keys(state_dict)
+    iter_num = checkpoint['iter_num']
+    best_val_loss = checkpoint['best_val_loss']
+    return model, state_dict, iter_num, best_val_loss
+
+
+def config_to_model_args(config):
+    model_args = {}
+    for k in ['n_layer', 'n_head', 'n_embd', 'block_size', 'bias', 'vocab_size']:
+        model_args[k] = config[k]
+    return model_args
+
+
+def fix_state_dict_keys(state_dict):
+    unwanted_prefix = '_orig_mod.'
+    for k, v in list(state_dict.items()):
+        if k.startswith(unwanted_prefix):
+            state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
+    return state_dict
+
 
 def load_checkpoint(checkpoint_path, model, optimizer):
     checkpoint = torch.load(checkpoint_path)
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    iteration = checkpoint['iteration']
-    print(f"Checkpoint loaded from {checkpoint_path} at iteration {iteration}")
-    return iteration
+    iter_num = checkpoint['iter_num']
+    print(f"Checkpoint loaded from {checkpoint_path} at iteration {iter_num}")
+    return iter_num
 
 class StepLRWithMinLr(_LRScheduler):
     def __init__(self, optimizer, step_size, gamma=0.1, min_lr=1e-6, last_epoch=-1):
@@ -81,8 +122,9 @@ class Trainer:
     def __init__(self, config):
         self.config = config
         self.device = config.device
-        self.device_type = 'cuda' if 'cuda' in self.device else 'cpu'
-        self.data_dir = os.path.join('components', 'data', config.dataset)
+        self.init_from = config.init_from
+        self.device_type = config.device
+        self.data_dir = os.path.join('components', 'data', config.blob_name)
         self.ptdtype, self.ctx = setup_device_and_context(config)
 
         os.makedirs(config.out_dir, exist_ok=True)
@@ -108,8 +150,23 @@ class Trainer:
             vocab_size=self.meta_vocab_size if self.meta_vocab_size is not None else 50304,
             dropout=config.dropout
         )
-        gptconf = GPTConfig(**self.model_args)
-        self.model = GPT(gptconf)
+        print(f"model args: {self.model_args}")
+    
+        self.iter_num = 0
+        self.best_val_loss = 1e9
+
+        if self.init_from == 'scratch':
+            gptconf = GPTConfig(**self.model_args)
+            self.model = GPT(gptconf)
+            # self.model.to(self.device)
+        elif self.init_from == 'checkpoints':
+            self.model, state_dict, self.iter_num, self.best_val_loss = resume_training(config, self.device)
+            self.model.load_state_dict(state_dict)
+        else:
+            raise ValueError(f"unknown init_from {self.init_from}")
+        
+        
+        self.config.max_iters = self.config.max_iters + self.iter_num if self.iter_num > 0 else self.config.max_iters
         self.model.to(self.device)
 
         self.scaler = torch.cuda.amp.GradScaler(enabled=(config.dtype == 'float16'))
@@ -121,9 +178,6 @@ class Trainer:
             print("compiling the model... (takes a ~minute)")
             self.model = torch.compile(self.model) # requires PyTorch 2.0
 
-        self.iter_num = 0
-        self.best_val_loss = 1e9
-
     def get_batch(self, split):
         return get_batch(split, self.data_dir, self.config.block_size, self.config.batch_size, self.device, self.device_type)
 
@@ -133,7 +187,10 @@ class Trainer:
                 losses = estimate_loss(self.model, self.config.eval_iters, self.get_batch, self.ctx)
                 print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
                 if losses['val'] < self.best_val_loss or self.config.always_save_checkpoint and iter_num > 0:
-                    save_checkpoint(self.model, self.optimizer, iter_num, self.model_args, self.best_val_loss)
+                    save_checkpoint(
+                        self.model, self.optimizer, iter_num, self.model_args, self.best_val_loss,
+                        self.config.bucket_name, self.config.blob_name
+                    )
             if iter_num == 0 and self.config.eval_only:
                 break
 

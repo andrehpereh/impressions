@@ -6,12 +6,16 @@ import pickle
 from components.utils.gcs_utils import download_from_gcs
 from components.data import tokenizer
 
-def download_and_load_captions(bucket_name, blob_name):
+def download_and_load_captions_json(bucket_name, blob_name):
     """
     Download and load captions from GCS.
     """
     content = download_from_gcs(bucket_name, blob_name, read_only=True)
-    return json.loads(content)
+    if content:
+        print("The data in type of content is, ", type(content))
+        return json.loads(content)
+    else:
+        raise ValueError("Downloaded content is empty.")
 
 def get_development_content(content, development_percentage):
     """
@@ -35,7 +39,7 @@ def create_master_captions(development_content, language="en"):
                 if captions:
                     master_text += captions + " "
                 else:
-                    print(f"Video {video_id} does not have captions in Spanish.")
+                    print(f"Video {video_id} does not have captions in {language}.")
             except (KeyError, TypeError, ValueError) as e:
                 print(f"An error occurred with video {video_id}: {e}")
     else:
@@ -96,7 +100,7 @@ def save_data(blob_name, train_ids, val_ids, vocab_size, tokenizer_type, stoi, i
 
 def process_captions_and_prepare_data(bucket_name, blob_name, development_percentage, train_percentage, tokenizer_type, language):
 
-    content = download_and_load_captions(bucket_name, blob_name)
+    content = download_and_load_captions_json(bucket_name, blob_name)
     development_content = get_development_content(content, development_percentage)
     master_text = create_master_captions(development_content, language)
 

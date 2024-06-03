@@ -1,3 +1,4 @@
+import os
 import json
 from google.cloud import storage
 from google.cloud import bigquery
@@ -38,11 +39,15 @@ def download_from_gcs(bucket_name, source_blob_name, destination_file_name=None,
         client = storage.Client()
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(source_blob_name)
-
-        if read_only:
+        print(f"Downloading blob {os.path.join(bucket_name,source_blob_name)}...")
+        print("Blob exists: ", blob.exists())
+        if read_only and blob.exists():
             content = blob.download_as_text()
-            print(f"Blob {source_blob_name} read successfully.")
-            return content
+            if content:
+                print("The data in type of content is, ", type(content))
+                return content
+            else:
+                raise ValueError("Downloaded content is empty.")
         else:
             if destination_file_name is None:
                 raise ValueError("destination_file_name must be provided when read_only is False.")
@@ -153,3 +158,23 @@ def save_dict_to_gcs(data, bucket_name, blob_name):
         print(f"Data successfully saved to gs://{bucket_name}/{blob_name}")
     except Exception as e:
         print(f"An error occurred while saving to GCS: {e}")
+
+def blob_exists(bucket_name, blob_name):
+    """
+    Check if a JSON file exists in the specified Google Cloud Storage bucket.
+
+    :param bucket_name: The name of the GCS bucket.
+    :param blob_name: The name of the blob (file) in the bucket.
+    :return: True if the file exists, False otherwise.
+    """
+    # Initialize a client
+    storage_client = storage.Client()
+
+    # Get the bucket
+    bucket = storage_client.bucket(bucket_name)
+
+    # Get the blob (file) from the bucket
+    blob = bucket.blob(blob_name)
+
+    # Check if the blob exists
+    return blob.exists()
