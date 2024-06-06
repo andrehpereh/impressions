@@ -13,34 +13,34 @@ Impressions is a custom GPT language model trained on YouTube video captions. It
 ## Project Structure
 
 .
-├── checkpoints/n\
-│ └── ckpt.ptn\
-├── components/n\
-│ ├── config/n\
-│ │ ├── init.pyn\
-│ │ └── Config.pyn\
-│ ├── data/n\
-│ │ ├── init.pyn\
-│ │ ├── Dockerfilen\
-│ │ ├── meta.pkln\
-│ │ ├── prepare_text_data.pyn\
-│ │ ├── tokenizer.pyn\
-│ │ ├── train.binn\
-│ │ ├── val.binn\
-│ │ └── youtube_captions.pyn\
-│ ├── training/n\
-│ │ ├── init.pyn\
-│ │ ├── Dockerfilen\
-│ │ ├── model.pyn\
-│ │ ├── sample.pyn\
-│ │ └── train.pyn\
-│ └── utils/n\
-│ ├── init.pyn\
-│ └── gcs_utils.pyn\
-├── pipeline/n\
-│ ├── Dockerfilen\
-│ └── pipeline.pyn\
-└── Dockerfilen\
+├── checkpoints/\
+│ └── ckpt.pt\
+├── components/\
+│ ├── config/\
+│ │ ├── init.py\
+│ │ └── Config.py\
+│ ├── data/\
+│ │ ├── init.py\
+│ │ ├── Dockerfile\
+│ │ ├── meta.pkl\
+│ │ ├── prepare_text_data.py\
+│ │ ├── tokenizer.py\
+│ │ ├── train.bin\
+│ │ ├── val.bin\
+│ │ └── youtube_captions.py\
+│ ├── training/\
+│ │ ├── init.py\
+│ │ ├── Dockerfile\
+│ │ ├── model.py\
+│ │ ├── sample.py\
+│ │ └── train.py\
+│ └── utils/\
+│ ├── init.py\
+│ └── gcs_utils.py\
+├── pipeline/\
+│ ├── Dockerfile\
+│ └── pipeline.py\
+└── Dockerfile\
 
 
 
